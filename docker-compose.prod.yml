@@ -1,0 +1,51 @@
+# Production overlay for proxy.wisp.net
+#
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# Key differences from dev:
+#   - Volumes are external (pre-existing on the host)
+#   - Network is external (shared with other Docker stacks)
+#   - echo-service joins dokku_network for webhook delivery
+#   - MEDIA_BASE_URL points to the public SSL-terminated domain
+#   - Only echo-service maps a host port (for host-nginx proxy)
+
+services:
+  echo-database:
+    networks:
+      echo-net:
+        aliases:
+          - echo-database
+
+  echo-service:
+    ports:
+      - "127.0.0.1:18080:8080"
+    networks:
+      echo-net:
+        aliases:
+          - echo-service
+      dokku_network:
+        aliases:
+          - echo-service
+
+  echo-web:
+    environment:
+      MEDIA_BASE_URL: https://media.echo.wisp.net
+    expose:
+      - "3160"
+
+  echo-media:
+    ports:
+      - "127.0.0.1:18082:8082"
+
+volumes:
+  echo_database_data:
+    external: true
+    name: echomessagingservice_echo_database_data
+  echo_media_data:
+    external: true
+
+networks:
+  echo-net:
+    external: true
+  dokku_network:
+    external: true
