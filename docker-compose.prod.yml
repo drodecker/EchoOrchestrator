@@ -5,9 +5,9 @@
 # Key differences from dev:
 #   - Volumes are external (pre-existing on the host)
 #   - Network is external (shared with other Docker stacks)
-#   - echo-service joins dokku_network for webhook delivery
+#   - Host nginx is the canonical edge/front door for Echo domains
+#   - echo-web, echo-service, and echo-media publish localhost-only ports for host-nginx proxying
 #   - MEDIA_BASE_URL points to the public SSL-terminated domain
-#   - Only echo-service maps a host port (for host-nginx proxy)
 
 services:
   echo-database:
@@ -30,12 +30,26 @@ services:
   echo-web:
     environment:
       MEDIA_BASE_URL: https://media.echo.wisp.net
-    expose:
-      - "3160"
+    ports:
+      - "127.0.0.1:13160:3160"
+    networks:
+      echo-net:
+        aliases:
+          - echo-web
+      dokku_network:
+        aliases:
+          - echo-web
 
   echo-media:
     ports:
       - "127.0.0.1:18082:8082"
+    networks:
+      echo-net:
+        aliases:
+          - echo-media
+      dokku_network:
+        aliases:
+          - echo-media
 
 volumes:
   echo_database_data:

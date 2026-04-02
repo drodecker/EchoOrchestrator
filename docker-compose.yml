@@ -3,6 +3,11 @@
 # Dev:  docker compose up -d             (auto-loads docker-compose.override.yml)
 # Prod: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 #
+# Production edge model:
+#   - host nginx on proxy.wisp.net is the canonical TLS/front-door layer
+#   - Echo services publish localhost-only ports for nginx reverse proxying
+#   - NPM/openresty is not the preferred Echo edge path
+#
 # Expects sibling repo layout:
 #   ../EchoDatabase/   ../EchoService/   ../EchoWeb/   ../EchoMedia/
 
