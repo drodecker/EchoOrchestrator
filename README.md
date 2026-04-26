@@ -13,15 +13,15 @@ Canonical deployment/orchestration project for the Echo stack.
 
 On `proxy.wisp.net`, the canonical edge model is:
 
-- **host nginx** terminates TLS and owns the public Echo hostnames
-- **EchoOrchestrator** runs the containers and publishes localhost-only ports for nginx to proxy to
-- **NPM/openresty is not the preferred Echo edge path**
+- **Nginx Proxy Manager/openresty** owns the public Echo hostnames and TLS termination
+- **EchoOrchestrator** runs the containers on the shared `echo-net` Docker network so NPM can proxy directly to service names
+- Localhost-only published ports remain useful for direct service checks and fallback/debugging
 
 ## Hostname mapping
 
-- `echo.wisp.net` → host nginx → `127.0.0.1:13160` → `echo-web`
-- `io.echo.wisp.net` → host nginx → `127.0.0.1:18080` → `echo-service`
-- `media.echo.wisp.net` → host nginx → `127.0.0.1:18082` → `echo-media`
+- `echo.wisp.net` → NPM/openresty → `echo-web:3160`
+- `io.echo.wisp.net` → NPM/openresty → `echo-service:8080`
+- `media.echo.wisp.net` → NPM/openresty → `echo-media:8082`
 
 ## Docker networks
 
@@ -43,25 +43,15 @@ Use:
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
 
-## Nginx configs
+## NPM configs
 
-Working host-nginx configs from `proxy.wisp.net` are stored in:
+Live NPM proxy-host records on `proxy.wisp.net` should be the source of truth for the Echo edge.
 
-- `deploy/nginx/echo.wisp.net.conf`
-- `deploy/nginx/io.echo.wisp.net.conf`
-- `deploy/nginx/media.echo.wisp.net.conf`
+- `echo.wisp.net` uses Let's Encrypt cert id/path `npm-9`
+- `io.echo.wisp.net` uses Let's Encrypt cert id/path `npm-11`
+- `media.echo.wisp.net` uses Let's Encrypt cert id/path `npm-12`
 
-These are the current known-good reference configs for the live server.
-
-## Certificate notes
-
-Current live certificate paths on `proxy.wisp.net` reference the existing Let's Encrypt material under:
-
-- `/opt/nginx-proxy-manager/letsencrypt/live/npm-9/` for `echo.wisp.net`
-- `/opt/nginx-proxy-manager/letsencrypt/live/npm-11/` for `io.echo.wisp.net`
-- `/opt/nginx-proxy-manager/letsencrypt/live/npm-12/` for `media.echo.wisp.net`
-
-For another server, do **not** assume those exact `npm-*` paths. Re-issue/attach certificates for that environment and update the nginx config paths accordingly.
+The files under `deploy/nginx/` are historical/fallback references only; do not treat them as the canonical production edge unless NPM is intentionally bypassed.
 
 ## Deployment portability notes
 
@@ -69,6 +59,6 @@ For a second server with different root URL structure:
 
 - update the public hostnames
 - update `MEDIA_BASE_URL`
-- update host nginx server blocks
-- keep the localhost proxy-port pattern unless there is a reason to change it
+- create/update NPM proxy hosts and attach certificates for that environment
+- keep the localhost proxy-port pattern for service checks unless there is a reason to change it
 - preserve external volume strategy if you want durable DB/media state
