@@ -5,9 +5,9 @@
 # Key differences from dev:
 #   - Volumes are external (pre-existing on the host)
 #   - Network is external (shared with other Docker stacks)
-#   - Host nginx is the canonical edge/front door for Echo domains
-#   - echo-web, echo-service, and echo-media publish localhost-only ports for host-nginx proxying
-#   - MEDIA_BASE_URL points to the public SSL-terminated domain
+#   - Nginx Proxy Manager/openresty is the canonical edge/front door for Echo domains
+#   - echo-web, echo-service, and echo-media publish localhost-only ports for checks/fallback
+#   - MEDIA_BASE_URL points to the public SSL-terminated media domain
 
 services:
   echo-database:
