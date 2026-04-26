@@ -2,20 +2,37 @@
 #
 # Maps ports to localhost so you can reach each service from your browser
 # and dev tools. Also exposes MySQL for direct DB client access.
+#
+# IMPORTANT: echo-net is declared external here so that all services join
+# the shared external echo-net (used by NPM) instead of the project-scoped
+# echoorchestrator_echo-net. Without this, NPM cannot reach the services
+# after any rebuild.
 
 services:
   echo-database:
     ports:
       - "127.0.0.1:13306:3306"
+    networks:
+      - echo-net
 
   echo-service:
     ports:
       - "127.0.0.1:18080:8080"
+    networks:
+      - echo-net
 
   echo-web:
     ports:
       - "127.0.0.1:3160:3160"
+    networks:
+      - echo-net
 
   echo-media:
     ports:
       - "127.0.0.1:18082:8082"
+    networks:
+      - echo-net
+
+networks:
+  echo-net:
+    external: true
