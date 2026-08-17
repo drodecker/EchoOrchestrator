@@ -1,0 +1,40 @@
+{
+  "version": "1",
+  "information": {
+    "name": "echo-sso",
+    "displayName": "Echo SSO Bridge",
+    "description": "Single sign-on bridge from the UISP client zone to the Echo messaging application. Clients click through from the portal and land directly in Echo without a separate login.",
+    "url": "https://echo.wisp.net",
+    "version": "2026.8.16",
+    "unmsVersionCompliancy": {
+      "min": "2.1.0",
+      "max": null
+    },
+    "ucrmVersionCompliancy": {
+      "min": "2.14.0",
+      "max": null
+    },
+    "author": "LocalSplash"
+  },
+  "configuration": [
+    {
+      "key": "echoBaseUrl",
+      "label": "Echo Base URL",
+      "description": "Base URL of the Echo application, no trailing slash. Dev: https://dev-echo.localsplash.ai  Prod: https://echo.wisp.net",
+      "required": 1
+    },
+    {
+      "key": "ssoSecret",
+      "label": "SSO Shared Secret",
+      "description": "HMAC-SHA256 hex secret shared with the Echo application (UISP_SSO_SECRET in Echo's environment). Keep this private.",
+      "required": 1
+    }
+  ],
+  "menu": [
+    {
+      "label": "Echo Messages",
+      "type": "client",
+      "target": "blank"
+    }
+  ]
+}

@@ -68,8 +68,26 @@ services:
       PORT: "3160"
       ECHO_SERVICE_BASE_URL: http://echo-service:8080
       MEDIA_BASE_URL: ${MEDIA_BASE_URL:-http://localhost:18082}
+      # Database (auth tables live in the same DB)
+      DB_HOST: echo-database
+      DB_USER: ${MYSQL_USER:-echo_app}
+      DB_PASSWORD: ${MYSQL_PASSWORD}
+      DB_NAME: ${MYSQL_DATABASE:-echo_db}
+      # Google OAuth
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      # UISP
+      UISP_BASE_URL: ${UISP_BASE_URL:-https://my.wisp.net}
+      UISP_CRM_APP_KEY_READ: ${UISP_CRM_APP_KEY_READ}
+      UISP_SSO_SECRET: ${UISP_SSO_SECRET}
+      UISP_PLUGIN_URL: ${UISP_PLUGIN_URL:-}
+      # Public URL (for OAuth redirect URIs)
+      APP_BASE_URL: ${APP_BASE_URL:-https://dev-echo.localsplash.ai}
     depends_on:
-      - echo-service
+      echo-database:
+        condition: service_healthy
+      echo-service:
+        condition: service_started
     restart: unless-stopped
     networks:
       - echo-net

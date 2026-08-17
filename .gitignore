@@ -1,2 +1,5 @@
 .env
 docker-compose.devserver.yml
+
+# Build artifact — rebuild with the zip command in uisp-plugin/README.md
+uisp-plugin/echo-sso-plugin.zip
