@@ -128,7 +128,6 @@ Add to `/opt/echo/EchoOrchestrator/.env`:
 MICROSOFT_CLIENT_ID=d534cd2e-b476-4ce3-bbf4-898d2402e724
 MICROSOFT_CLIENT_SECRET=<the NEW production secret Value from step 2>
 MICROSOFT_TENANT=common
-MICROSOFT_WISP_TENANT_ID=ae0d317b-49e2-46b9-84e7-964f8b1dedbb
 ```
 
 | Variable | Purpose | If unset |
@@ -136,7 +135,6 @@ MICROSOFT_WISP_TENANT_ID=ae0d317b-49e2-46b9-84e7-964f8b1dedbb
 | `MICROSOFT_CLIENT_ID` | Application (client) ID. Also the feature flag — the login button is hidden while it is empty. | Microsoft sign-in is off; everything else unaffected |
 | `MICROSOFT_CLIENT_SECRET` | Client secret **Value**. Used only server-side for the token exchange. | Sign-in starts, then fails at token exchange |
 | `MICROSOFT_TENANT` | Authority segment. `common` = any work/school or personal account. A directory GUID restricts sign-in to that tenant alone. | Defaults to `common` |
-| `MICROSOFT_WISP_TENANT_ID` | Wisp's own directory GUID. Gates super-admin (see below). | Compose supplies the literal default; if it ever resolves empty, Microsoft super-admin is refused — fails closed |
 
 Two values from the Entra portal are deliberately **not** used and should not be
 added: the **Object ID** (a Graph management identifier) and the **Secret ID**
@@ -151,17 +149,19 @@ grep -E 'APP_BASE_URL|MICROSOFT_' /opt/echo/EchoOrchestrator/.env
 `APP_BASE_URL` must be `https://echo.wisp.net`, or the redirect URI Echo sends
 will not match what you registered in step 2.
 
-### Why `MICROSOFT_WISP_TENANT_ID` matters
+### Super-admin stays on Google
 
-Super-admin is granted to any `@wisp.net` address. Google verifies the domain it
-reports; **Entra does not** — the `email` claim is set by the user's own tenant.
-With a `common` authority, any Microsoft tenant on earth could otherwise set a
-user's address to `x@wisp.net` and take super-admin over every org.
+Microsoft **cannot** grant super-admin, by design. Super-admin is granted on an
+`@wisp.net` address, and Google is the only provider trusted to assert one — it
+verifies the Workspace domain it reports. Entra does not: with a `common`
+authority the address is whatever the user's own tenant put there, so any
+directory on earth could mint an `@wisp.net` user. wisp.net is a Google
+Workspace domain and staff stay on Google, so Microsoft never reaches that
+branch (`isWispStaff` in `EchoWeb/src/app.ts`).
 
-Echo therefore only allows a Microsoft token to reach the super-admin branch
-when its `tid` matches this variable (`isWispStaff` in `EchoWeb/src/app.ts`).
-Set it correctly, or `@wisp.net` staff signing in with Microsoft will be treated
-as ordinary users.
+A wisp.net person who signs in with Microsoft is treated as an ordinary user
+and, having no membership, is turned away with `?auth_error=no_membership`.
+That is expected — tell staff to use **Continue with Google**.
 
 The customer-facing path is deliberately looser and matches Google: a CRM
 contact email match provisions an org owner. That is an accepted risk — a
@@ -215,8 +215,8 @@ Then walk the paths in a browser:
       straight in, no duplicate org created (check `/internal/accounts`).
 - [ ] **Linking** — from **Settings → Sign-in Methods → Link Microsoft**, attach
       a Microsoft account to an existing user, sign out, sign back in with it.
-- [ ] **Super-admin** — an `@wisp.net` Microsoft account lands on `/internal`.
-      If it lands in a normal org instead, `MICROSOFT_WISP_TENANT_ID` is wrong.
+- [ ] **Super-admin unaffected** — an `@wisp.net` **Google** account still lands
+      on `/internal`. Microsoft cannot grant super-admin; that is intentional.
 - [ ] **No regressions** — Google sign-in and the UISP client-zone bridge still
       work. Both share the refactored callback, so give each one pass.
 
@@ -262,7 +262,7 @@ would also roll back any messages received since the backup.
 | `?auth_error=token_exchange_failed` | Secret wrong/expired, or the prod host cannot reach `login.microsoftonline.com` |
 | `?auth_error=userinfo_failed` | The `id_token` carried no usable address — the account has neither an `email` nor an email-shaped `preferred_username` |
 | `?auth_error=invalid_state` | Session expired mid-login, or the state cookie was minted for the other provider; retry |
-| `@wisp.net` Microsoft account lands in a normal org, not `/internal` | `MICROSOFT_WISP_TENANT_ID` doesn't match the token's `tid` |
+| `@wisp.net` account signing in with Microsoft gets `no_membership` | Expected — super-admin is Google-only. Use **Continue with Google** |
 | `?auth_error=no_account` | CRM lookup threw. Check `UISP_CRM_APP_KEY_READ` and reachability of `my.wisp.net` |
 | Duplicate org appears for an existing subscriber | The CRM client had no prior org and the address matched a different client — inspect via `/internal/accounts` |
 
