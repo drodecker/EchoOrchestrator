@@ -110,6 +110,10 @@ docker exec echo-database sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" echo_db -
 
 Expect the six `auth_tbl_*` tables and `enum('google','magic_link','uisp')`.
 
+> Microsoft sign-in was added later and appends `'microsoft'` to that enum via
+> `init/008_microsoft_identity.sql`. If you are deploying both releases at once,
+> apply 008 as well and expect the four-value enum. See `DEPLOY-MICROSOFT-SSO.md`.
+
 > If `docker exec` output comes back empty on your host, write the result to a
 > file inside the container and `docker cp` it out — some sandboxes swallow
 > `docker exec` stdout.
@@ -181,7 +185,7 @@ UCRM generates the public URL itself; it is not a path you can predict.
 2. Put it in `.env` as `UISP_PLUGIN_URL`.
 3. Restart (step 8).
 
-Until this is set, the "Sign in with your ISP account" button stays hidden on the
+Until this is set, the UISP button ("Continue with Wisp.net") stays hidden on the
 login page — by design, rather than linking somewhere broken.
 
 > If that field is blank in UCRM, set **Server domain name** / **Server IP**
