@@ -9,7 +9,9 @@
  *  1. Forward the browser's UISP cookies to /crm/current-user server-side.
  *  2. If not authenticated → redirect to UISP client-zone login.
  *  3. If authenticated as a client → sign a 30-second one-time code and
- *     redirect to Echo's /sso/callback endpoint.
+ *     redirect to the id identity processor's /sso/callback endpoint, which
+ *     signs the user in domain-wide and forwards them into Echo (or whatever
+ *     app they were headed to).
  */
 
 declare(strict_types=1);
@@ -21,12 +23,14 @@ $pluginConfig = file_exists($configFile)
     ? json_decode(file_get_contents($configFile), true)
     : [];
 
-$echoBaseUrl = rtrim((string)($pluginConfig['echoBaseUrl'] ?? ''), '/');
-$ssoSecret   = (string)($pluginConfig['ssoSecret'] ?? '');
+// idBaseUrl points at the identity processor (id.<parent-domain>). The old
+// echoBaseUrl key is honoured as a fallback for already-installed configs.
+$idBaseUrl = rtrim((string)($pluginConfig['idBaseUrl'] ?? $pluginConfig['echoBaseUrl'] ?? ''), '/');
+$ssoSecret = (string)($pluginConfig['ssoSecret'] ?? '');
 
-if ($echoBaseUrl === '' || $ssoSecret === '') {
+if ($idBaseUrl === '' || $ssoSecret === '') {
     http_response_code(503);
-    echo '<p>Echo SSO is not configured. Please set the Echo Base URL and SSO Shared Secret in the plugin settings.</p>';
+    echo '<p>Echo SSO is not configured. Please set the Identity (id) Base URL and SSO Shared Secret in the plugin settings.</p>';
     exit;
 }
 
@@ -117,11 +121,11 @@ $rawPayload = json_encode([
 // URL-safe base64 (no padding) — Echo side decodes with Buffer.from(code, 'base64url')
 $code = rtrim(strtr(base64_encode($rawPayload), '+/', '-_'), '=');
 
-// HMAC-SHA256 over the code string; Echo does constant-time comparison
+// HMAC-SHA256 over the code string; id does constant-time comparison
 $sig = hash_hmac('sha256', $code, $ssoSecret);
 
-// ─── Redirect to Echo SSO callback ────────────────────────────────────────────
-$callbackUrl = $echoBaseUrl . '/sso/callback'
+// ─── Redirect to the id SSO callback ──────────────────────────────────────────
+$callbackUrl = $idBaseUrl . '/sso/callback'
     . '?code=' . urlencode($code)
     . '&sig='  . urlencode($sig);
 

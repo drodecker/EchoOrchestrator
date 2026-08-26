@@ -1,5 +1,9 @@
 # Deploying Microsoft (Entra ID) sign-in to production
 
+> **SUPERSEDED:** sign-in has since moved to the `id` identity processor —
+> see `DEPLOY-ID.md`. Microsoft credentials now live in the `oAuthConfig`
+> settings table, not in EchoWeb's environment. Historical reference only.
+
 Runbook for adding Microsoft as a third login provider on
 `echo.wisp.net`, alongside the Google and UISP paths that are already live.
 

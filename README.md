@@ -4,6 +4,8 @@ Canonical deployment/orchestration project for the Echo stack.
 
 ## Stack
 
+- id — OAuth identity processor for every app under the parent domain (sibling repo `../id`)
+- NocoDB — settings store; home of the shared `oAuthConfig` table
 - EchoWeb
 - EchoService
 - EchoDatabase
@@ -19,9 +21,15 @@ On `proxy.wisp.net`, the canonical edge model is:
 
 ## Hostname mapping
 
+- `id.wisp.net` → NPM/openresty → `id-web:3200`
+- `nocodb.wisp.net` → NPM/openresty → `nocodb:8080`
 - `echo.wisp.net` → NPM/openresty → `echo-web:3160`
 - `io.echo.wisp.net` → NPM/openresty → `echo-service:8080`
 - `media.echo.wisp.net` → NPM/openresty → `echo-media:8082`
+
+Sign-in for every app under the parent domain happens on `id.wisp.net`; see
+`DEPLOY-ID.md` for the bootstrap runbook (NocoDB token, first-run setup
+wizard, UISP plugin retarget).
 
 ## Docker networks
 

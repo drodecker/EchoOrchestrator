@@ -9,7 +9,7 @@
 #   - localhost-only published ports remain useful for direct service checks/fallback
 #
 # Expects sibling repo layout:
-#   ../EchoDatabase/   ../EchoService/   ../EchoWeb/   ../EchoMedia/
+#   ../EchoDatabase/   ../EchoService/   ../EchoWeb/   ../EchoMedia/   ../id/
 
 services:
 
@@ -58,6 +58,52 @@ services:
     networks:
       - echo-net
 
+  # ── Settings store (NocoDB) ────────────────────────────────────────────────
+  # Home of the shared oAuthConfig table (base `id`). Admins reach the UI at
+  # nocodb.<parent-domain>; id-web and echo-web read/write it via API token.
+  nocodb:
+    image: nocodb/nocodb:latest
+    container_name: nocodb
+    hostname: nocodb
+    environment:
+      TZ: America/Los_Angeles
+      NC_DB: "mysql2://echo-database:3306?u=${MYSQL_USER:-echo_app}&p=${MYSQL_PASSWORD}&d=nocodb_db"
+      NC_PUBLIC_URL: ${NOCODB_PUBLIC_URL:-}
+    depends_on:
+      echo-database:
+        condition: service_healthy
+    volumes:
+      - nocodb_data:/usr/app/data
+    restart: unless-stopped
+    networks:
+      - echo-net
+
+  # ── Identity processor ─────────────────────────────────────────────────────
+  # OAuth for every app under the parent domain lives here (id.<parent-domain>).
+  # Bootstrap: bring the stack up, create the NocoDB admin + API token, put the
+  # token in .env, restart id-web, then claim the instance at /setup.
+  id-web:
+    build: ../id
+    container_name: id-web
+    hostname: id-web
+    environment:
+      TZ: America/Los_Angeles
+      PORT: "3200"
+      DB_HOST: echo-database
+      DB_USER: ${MYSQL_USER:-echo_app}
+      DB_PASSWORD: ${MYSQL_PASSWORD}
+      DB_NAME: id_db
+      NOCODB_BASE_URL: http://nocodb:8080
+      NOCODB_API_TOKEN: ${NOCODB_API_TOKEN:-}
+    depends_on:
+      echo-database:
+        condition: service_healthy
+      nocodb:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - echo-net
+
   # ── Web frontend ───────────────────────────────────────────────────────────
   echo-web:
     build: ../EchoWeb
@@ -68,29 +114,24 @@ services:
       PORT: "3160"
       ECHO_SERVICE_BASE_URL: http://echo-service:8080
       MEDIA_BASE_URL: ${MEDIA_BASE_URL:-http://localhost:18082}
-      # Database (auth tables live in the same DB)
+      # Database (org/membership/session tables live in the same DB)
       DB_HOST: echo-database
       DB_USER: ${MYSQL_USER:-echo_app}
       DB_PASSWORD: ${MYSQL_PASSWORD}
       DB_NAME: ${MYSQL_DATABASE:-echo_db}
-      # Google OAuth
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
-      # Microsoft / Entra ID
-      MICROSOFT_CLIENT_ID: ${MICROSOFT_CLIENT_ID:-}
-      MICROSOFT_CLIENT_SECRET: ${MICROSOFT_CLIENT_SECRET:-}
-      MICROSOFT_TENANT: ${MICROSOFT_TENANT:-common}
-      # UISP
-      UISP_BASE_URL: ${UISP_BASE_URL:-https://my.wisp.net}
-      UISP_CRM_APP_KEY_READ: ${UISP_CRM_APP_KEY_READ}
-      UISP_SSO_SECRET: ${UISP_SSO_SECRET}
-      UISP_PLUGIN_URL: ${UISP_PLUGIN_URL:-}
-      # Public URL (for OAuth redirect URIs)
+      # OAuth is delegated to id-web; the shared settings (id base URL,
+      # exchange secret, UISP CRM access) come from the NocoDB oAuthConfig
+      # table, so no provider credentials appear here any more.
+      NOCODB_BASE_URL: http://nocodb:8080
+      NOCODB_API_TOKEN: ${NOCODB_API_TOKEN:-}
+      # This app's own public URL (redirect_uri handed to id)
       APP_BASE_URL: ${APP_BASE_URL:-https://dev-echo.localsplash.ai}
     depends_on:
       echo-database:
         condition: service_healthy
       echo-service:
+        condition: service_started
+      id-web:
         condition: service_started
     restart: unless-stopped
     networks:
@@ -113,6 +154,7 @@ services:
 volumes:
   echo_database_data:
   echo_media_data:
+  nocodb_data:
 
 networks:
   echo-net:

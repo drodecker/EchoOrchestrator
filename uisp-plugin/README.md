@@ -50,8 +50,8 @@ Two constraints are worth knowing:
 
 - A menu item can only point at the plugin's own `public.php` — never an
   arbitrary external URL. This is the better behaviour anyway: `public.php`
-  mints the SSO code and forwards to the Echo Base URL, so the user arrives
-  already signed in. A direct link would land them on Echo's login page.
+  mints the SSO code and forwards to the id identity processor, which signs
+  the user in domain-wide and lands them in Echo already authenticated.
 - `target` is `blank`, not `iframe`, deliberately. Echo's session cookie is
   `SameSite=Lax`, so in a cross-site iframe the browser would withhold it and
   sign-in would fail.
@@ -86,28 +86,27 @@ There is **no plugin API in UCRM 4.5.33** — every `/crm/api/v1.0/plugins` rout
 2. Go to **CRM → System → Plugins**.
 3. Click **Add plugin** (`+`) and upload `echo-sso-plugin.zip`.
 4. Open the plugin and fill in its two config fields:
-   - **Echo Base URL** — `https://dev-echo.localsplash.ai` (dev) or `https://echo.wisp.net` (prod)
-   - **SSO Shared Secret** — must match `UISP_SSO_SECRET` in Echo's environment
+   - **Identity (id) Base URL** — the id identity processor, e.g. `https://id.wisp.net`
+   - **SSO Shared Secret** — must match `UISP_SSO_SECRET` in the shared `oAuthConfig` settings table (NocoDB)
 5. **Enable** the plugin.
 
-## After installing: copy the public URL back to Echo
+## After installing: copy the public URL back to oAuthConfig
 
-UCRM generates the plugin's public URL itself and displays it on the plugin page as **"Plugin public URL"**. It is not a path you can predict, so Echo takes it as configuration:
+UCRM generates the plugin's public URL itself and displays it on the plugin page as **"Plugin public URL"**. It is not a path you can predict, so id takes it as configuration:
 
 1. Copy the "Plugin public URL" value from the UISP plugin page.
-2. Set it as `UISP_PLUGIN_URL` in `/opt/echo/EchoOrchestrator/.env`.
-3. `./scripts/rebuild.sh echo-web`
+2. Set it as `UISP_PLUGIN_URL` in the `oAuthConfig` table (id's `/admin` page or the NocoDB UI).
 
-Until `UISP_PLUGIN_URL` is set, the "Sign in with your ISP account" button stays hidden on Echo's login page rather than linking somewhere broken.
+Until `UISP_PLUGIN_URL` (together with `UISP_SSO_SECRET`) is set, the ISP sign-in button stays hidden on id's login page rather than linking somewhere broken.
 
 > If the plugin page shows the public URL as empty, UCRM has no **Server domain name** / **Server IP** configured under CRM → System → Settings. The public URL cannot be generated without it.
 
 ## Switching dev → prod
 
-Change **Echo Base URL** in the plugin config to `https://echo.wisp.net` and update `UISP_PLUGIN_URL` on the prod Echo host. Nothing else changes — both environments talk to the same UISP instance.
+Change **Identity (id) Base URL** in the plugin config to the prod id host and update `UISP_PLUGIN_URL` in that environment's `oAuthConfig`. Nothing else changes — both environments talk to the same UISP instance.
 
 ## Security
 
-- The SSO secret must match `UISP_SSO_SECRET` in Echo's environment exactly.
-- Signed codes expire after 30 seconds and are single-use (replay-protected by `auth_tbl_SsoNonce`).
+- The SSO secret must match `UISP_SSO_SECRET` in the `oAuthConfig` settings table exactly.
+- Signed codes expire after 30 seconds and are single-use (replay-protected by `id_tbl_SsoNonce`).
 - The plugin only reads the UISP session; it never writes to UISP.

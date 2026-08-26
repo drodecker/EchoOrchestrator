@@ -21,6 +21,18 @@ services:
     networks:
       - echo-net
 
+  nocodb:
+    ports:
+      - "127.0.0.1:18090:8080"
+    networks:
+      - echo-net
+
+  id-web:
+    ports:
+      - "127.0.0.1:3200:3200"
+    networks:
+      - echo-net
+
   echo-web:
     ports:
       - "127.0.0.1:3160:3160"

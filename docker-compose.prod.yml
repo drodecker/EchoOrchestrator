@@ -27,6 +27,28 @@ services:
         aliases:
           - echo-service
 
+  nocodb:
+    ports:
+      - "127.0.0.1:18090:8080"
+    networks:
+      echo-net:
+        aliases:
+          - nocodb
+      dokku_network:
+        aliases:
+          - nocodb
+
+  id-web:
+    ports:
+      - "127.0.0.1:13200:3200"
+    networks:
+      echo-net:
+        aliases:
+          - id-web
+      dokku_network:
+        aliases:
+          - id-web
+
   echo-web:
     environment:
       MEDIA_BASE_URL: https://media.echo.wisp.net

@@ -1,5 +1,9 @@
 # Deploying the UISP SSO / identity release to production
 
+> **SUPERSEDED:** sign-in has since moved to the `id` identity processor —
+> see `DEPLOY-ID.md`. This runbook is kept for historical reference only;
+> the EchoWeb OAuth environment variables it sets no longer exist.
+
 Runbook for taking the auth work from dev (`dev-echo.localsplash.ai`) to
 production (`echo.wisp.net`). Written to be followed top to bottom by someone —
 or some agent — who was not part of building it.
