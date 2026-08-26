@@ -101,16 +101,23 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 Open `https://id.<domain>` — while no provider is configured it redirects
 to **/setup**:
 
-1. Enter the parent domain (X.TLD). This becomes the SSO cookie scope, the
-   redirect allowlist, and the Super System Admin domain.
+1. Enter the **application domain** (X.TLD) — where the apps are served.
+   This becomes the SSO cookie scope and the redirect allowlist.
 2. Pick Google or Microsoft and paste that provider's client credentials
    (register the shown callback URL with the provider first; Microsoft
    additionally needs the directory/tenant ID — `common` cannot prove a
    domain).
 3. The wizard runs a real sign-in against those credentials. If it works
-   and your verified account is on the claimed domain, everything is saved
-   to `oAuthConfig` (including a generated `ID_CLIENT_SECRET`) and you land
-   on `/admin` as Super System Admin. Nothing is saved otherwise.
+   and your verified account is on the Super Admin domain, everything is
+   saved to `oAuthConfig` (including a generated `ID_CLIENT_SECRET`) and you
+   land on `/admin` as Super System Admin. Nothing is saved otherwise.
+4. **If your identity domain differs from your application domain**, the
+   wizard says so and offers the right value. This is the norm with a Google
+   Workspace **domain alias**: apps at `example.ai`, Workspace primary
+   `example.com`, and Google always asserts the primary — never the alias.
+   Confirm, and it re-runs the sign-in with `SUPERADMIN_DOMAIN=example.com`
+   in place. (`SUPERADMIN_DOMAIN` accepts a comma-separated list if more
+   than one domain should qualify.)
 
 From `/admin` (or the NocoDB UI) fill in the rest: the second provider,
 `UISP_BASE_URL`, `UISP_CRM_APP_KEY_READ`, `UISP_SSO_SECRET`,
@@ -128,6 +135,28 @@ Re-upload the bumped plugin (its config key changed):
    secret = `UISP_SSO_SECRET` from `oAuthConfig`.
 3. Copy the "Plugin public URL" into `oAuthConfig.UISP_PLUGIN_URL`.
 
+## 7b. Confirm the apps are listening
+
+Each app keeps its **own** session, independent of id's. Revoking a login at
+id therefore only stops *new* sign-ins unless the app is told — so an app
+that is not listening is a real (and silent) offboarding hole.
+
+Apps handle this themselves: on boot each one registers its receiver with
+id and gets back the secret that signs deliveries. Nothing to configure —
+but do confirm it happened.
+
+- [ ] Open `id/admin` → **Application integrations**. Every app that signs
+      users in should read **listening**.
+- [ ] An app showing **not integrated** redeems logins but never registered
+      a receiver — id spots this on its own from the token exchange, so the
+      row appearing at all means the app is live and deaf. Deploy the
+      receiver and restart it.
+- [ ] **Not listening** means deliveries are erroring; the row shows the
+      last error. **Send test event** re-tests on demand.
+
+The same panel shows the integration contract for anything new you build
+under the domain.
+
 ## 8. Verify
 
 - [ ] `https://id.<domain>/healthz` and `https://echo.<domain>/healthz` OK.
@@ -139,12 +168,23 @@ Re-upload the bumped plugin (its config key changed):
       on id.
 - [ ] Sign-out in Echo ends the id session too (next visit shows the login
       page, not a silent re-login).
-- [ ] Revoking a session from id `/admin` actually ends it.
+- [ ] Revoking a session from id `/admin` actually ends it **in Echo too** —
+      revoke, then reload Echo: it should send you back through sign-in. If
+      Echo stays logged in, its receiver is not working; check the
+      integration panel (step 7b).
+- [ ] `id/admin` → **Application integrations** shows every app as
+      *listening*.
 
 ## Notes
 
 - **Sessions never expire.** Logins persist until revoked — logout,
-  "sign out everywhere", or an admin revocation.
+  "sign out everywhere", or an admin revocation. Revocations reach the apps
+  as signed webhooks; an app that was down catches up from id's event log at
+  boot, so no app needs a cron job.
+- **Duplicate people** (one person as two id users — came through the ISP
+  bridge, later signed in with Google) are repaired with **Merge into…** in
+  `id/admin`: login methods move, the retired user's sessions end, and the
+  apps repoint their own mapping automatically.
 - Any new app under X.TLD gets sign-in with no registration: redirect to
   `id/authorize` with its callback as `redirect_uri`, then redeem the code
   at `POST id/api/token` with `ID_CLIENT_SECRET` from `oAuthConfig`.
