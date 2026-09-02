@@ -8,8 +8,15 @@
 #   - Echo services join shared echo-net so NPM can reverse proxy by container DNS name
 #   - localhost-only published ports remain useful for direct service checks/fallback
 #
+# Configuration model:
+#   Every service reads its settings from the NocoDB base IdentityBase
+#   (table auth_tbl_Settings) — see localsplash/identity#15. This file states
+#   only how to reach that base, plus what the database container needs to
+#   configure itself, which cannot come from a table it is hosting.
+#
 # Expects sibling repo layout:
 #   ../EchoDatabase/   ../EchoService/   ../EchoWeb/   ../EchoMedia/
+#   ../identity/  (the identity service, served at identity.X.TLD)
 
 services:
 
@@ -43,12 +50,11 @@ services:
     hostname: echo-service
     environment:
       PORT: "8080"
-      DB_HOST: echo-database
-      DB_USER: ${MYSQL_USER:-echo_app}
-      DB_PASSWORD: ${MYSQL_PASSWORD}
-      DB_NAME: ${MYSQL_DATABASE:-echo_db}
-      CORS_ORIGINS: "*"
-      MEDIA_ROOT: /media
+      # The two things a service states; everything else — the database
+      # coordinates, the Bandwidth credentials, CORS origins, trustedCIDR —
+      # is a row in IdentityBase.auth_tbl_Settings.
+      NOCODB_BASE_URL: ${NOCODB_BASE_URL}
+      NOCODB_API_TOKEN: ${NOCODB_API_TOKEN}
     depends_on:
       echo-database:
         condition: service_healthy
@@ -66,32 +72,36 @@ services:
     environment:
       TZ: America/Los_Angeles
       PORT: "3160"
-      ECHO_SERVICE_BASE_URL: http://echo-service:8080
-      MEDIA_BASE_URL: ${MEDIA_BASE_URL:-http://localhost:18082}
-      # Database (auth tables live in the same DB)
-      DB_HOST: echo-database
-      DB_USER: ${MYSQL_USER:-echo_app}
-      DB_PASSWORD: ${MYSQL_PASSWORD}
-      DB_NAME: ${MYSQL_DATABASE:-echo_db}
-      # Google OAuth
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
-      # Microsoft / Entra ID
-      MICROSOFT_CLIENT_ID: ${MICROSOFT_CLIENT_ID:-}
-      MICROSOFT_CLIENT_SECRET: ${MICROSOFT_CLIENT_SECRET:-}
-      MICROSOFT_TENANT: ${MICROSOFT_TENANT:-common}
-      # UISP
-      UISP_BASE_URL: ${UISP_BASE_URL:-https://my.wisp.net}
-      UISP_CRM_APP_KEY_READ: ${UISP_CRM_APP_KEY_READ}
-      UISP_SSO_SECRET: ${UISP_SSO_SECRET}
-      UISP_PLUGIN_URL: ${UISP_PLUGIN_URL:-}
-      # Public URL (for OAuth redirect URIs)
-      APP_BASE_URL: ${APP_BASE_URL:-https://dev-echo.localsplash.ai}
+      # The two things a service states. The OAuth and UISP credentials, the
+      # database coordinates, ECHO_SERVICE_BASE_URL, MEDIA_BASE_URL,
+      # APP_BASE_URL and trustedCIDR are rows in
+      # IdentityBase.auth_tbl_Settings, shared with every other application.
+      NOCODB_BASE_URL: ${NOCODB_BASE_URL}
+      NOCODB_API_TOKEN: ${NOCODB_API_TOKEN}
     depends_on:
       echo-database:
         condition: service_healthy
       echo-service:
         condition: service_started
+    restart: unless-stopped
+    networks:
+      - echo-net
+
+  # ── Identity (identity.X.TLD) ──────────────────────────────────────────────
+  #
+  # The single sign-in surface for every app under the parent domain, and the
+  # owner of the IdentityBase settings base every other service reads. It
+  # creates and seeds that base on first boot; the others only read it.
+  identity:
+    build: ../identity
+    container_name: identity
+    hostname: identity
+    environment:
+      PORT: "3200"
+      NOCODB_BASE_URL: ${NOCODB_BASE_URL}
+      NOCODB_API_TOKEN: ${NOCODB_API_TOKEN}
+    ports:
+      - "127.0.0.1:3200:3200"
     restart: unless-stopped
     networks:
       - echo-net
