@@ -62,6 +62,9 @@ services:
       # every application agree on it.
       NOCODB_BASE_URL: ${NOCODB_BASE_URL}
       NOCODB_API_TOKEN: ${NOCODB_API_TOKEN}
+      # ...unless the deployment pins it, in which case NocoDB is not consulted
+      # for it at all. Both apps check this before reaching for IdentityBase.
+      IDENTITY_TRUSTED_NETWORK: ${IDENTITY_TRUSTED_NETWORK:-}
     depends_on:
       echo-database:
         condition: service_healthy
@@ -89,6 +92,8 @@ services:
       # And where trustedCIDR lives.
       NOCODB_BASE_URL: ${NOCODB_BASE_URL}
       NOCODB_API_TOKEN: ${NOCODB_API_TOKEN}
+      # ...unless the deployment pins it; see echo-service above.
+      IDENTITY_TRUSTED_NETWORK: ${IDENTITY_TRUSTED_NETWORK:-}
     depends_on:
       echo-database:
         condition: service_healthy
