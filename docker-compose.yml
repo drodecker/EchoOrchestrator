@@ -43,6 +43,36 @@ services:
     networks:
       - echo-net
 
+  # ── Schema migrations ──────────────────────────────────────────────────────
+  #
+  # EchoDatabase's init/ is mounted into the database container at
+  # /docker-entrypoint-initdb.d, which MySQL runs ONLY when it initialises an
+  # empty data directory. Every numbered file added after the first `up` is
+  # silently skipped — which is how 009_settings.sql sat in the repo while a
+  # running database had no echo_tbl_Settings, and the apps failed at runtime
+  # with something that looked nothing like the cause.
+  #
+  # So the files are applied here too, in order, against the database as it
+  # actually is. Each is recorded in echo_tbl_SchemaMigration after it
+  # succeeds, so this is a no-op on every start but the first that sees a new
+  # file. The apps wait on it completing.
+  echo-migrate:
+    image: mysql:8.4
+    container_name: echo-migrate
+    depends_on:
+      echo-database:
+        condition: service_healthy
+    environment:
+      MYSQL_PWD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-echo_db}
+    volumes:
+      - ../EchoDatabase/init:/init:ro
+      - ./scripts/migrate.sh:/migrate.sh:ro
+    entrypoint: ["/bin/bash", "/migrate.sh"]
+    restart: "no"
+    networks:
+      - echo-net
+
   # ── Mid-tier API ───────────────────────────────────────────────────────────
   echo-service:
     build: ../EchoService
@@ -60,16 +90,27 @@ services:
       # And where trustedCIDR lives — the one setting read from outside the
       # Echo database, because a network policy only works if identity and
       # every application agree on it.
-      NOCODB_BASE_URL: ${NOCODB_BASE_URL}
-      NOCODB_API_TOKEN: ${NOCODB_API_TOKEN}
-      # ...unless the deployment pins it, in which case NocoDB is not consulted
-      # for it at all. Both apps check this before reaching for IdentityBase.
+      #
+      # Both blank on purpose. The identity-config volume below carries
+      # identity's /data/config.json, which holds exactly these two keys, and
+      # EchoService reads it when the environment is silent. Stating them here
+      # would win over the file and put the same secret in a second place.
+      NOCODB_BASE_URL: ${NOCODB_BASE_URL:-}
+      NOCODB_API_TOKEN: ${NOCODB_API_TOKEN:-}
+      # ...unless the deployment pins the network, in which case NocoDB is not
+      # consulted for it at all.
       IDENTITY_TRUSTED_NETWORK: ${IDENTITY_TRUSTED_NETWORK:-}
     depends_on:
       echo-database:
         condition: service_healthy
+      echo-migrate:
+        condition: service_completed_successfully
     volumes:
       - echo_media_data:/media
+      # identity's bootstrap file, read-only: this service reads it and must
+      # never write it. Works because both images run as uid 100 and the file
+      # is mode 0600 — pinned deliberately in both Dockerfiles, not by luck.
+      - identity-config:/data:ro
     restart: unless-stopped
     networks:
       - echo-net
@@ -89,14 +130,13 @@ services:
       DB_USER: ${MYSQL_USER:-echo_app}
       DB_PASSWORD: ${MYSQL_PASSWORD}
       DB_NAME: ${MYSQL_DATABASE:-echo_db}
-      # And where trustedCIDR lives.
-      NOCODB_BASE_URL: ${NOCODB_BASE_URL}
-      NOCODB_API_TOKEN: ${NOCODB_API_TOKEN}
-      # ...unless the deployment pins it; see echo-service above.
-      IDENTITY_TRUSTED_NETWORK: ${IDENTITY_TRUSTED_NETWORK:-}
+      # And that is the whole list. EchoWeb reads nothing from NocoDB, so it
+      # needs no token and has no bootstrap to do — see EchoWeb#17.
     depends_on:
       echo-database:
         condition: service_healthy
+      echo-migrate:
+        condition: service_completed_successfully
       echo-service:
         condition: service_started
     restart: unless-stopped
@@ -120,6 +160,12 @@ services:
 volumes:
   echo_database_data:
   echo_media_data:
+  # Owned by the identity stack, not this one. `external` means this stack
+  # fails loudly if identity has not been brought up yet — which is the right
+  # order, and a far better failure than inventing a configuration.
+  identity-config:
+    external: true
+    name: ${IDENTITY_CONFIG_VOLUME:-identity_identity-config}
 
 networks:
   echo-net:
