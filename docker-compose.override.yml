@@ -33,11 +33,6 @@ services:
     networks:
       - echo-net
 
-  identity:
-    ports:
-      - "127.0.0.1:3200:3200"
-    networks:
-      - echo-net
 
 networks:
   echo-net:

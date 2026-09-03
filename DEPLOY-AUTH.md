@@ -122,44 +122,41 @@ Expect the six `auth_tbl_*` tables and `enum('google','magic_link','uisp')`.
 
 ## 5. Production settings
 
-These are **not** environment variables any more. They are rows in the NocoDB
-base `IdentityBase`, table `auth_tbl_Settings`, which every service on the
-platform reads (see localsplash/identity#15). The `.env` on the host carries
-only `NOCODB_BASE_URL`, `NOCODB_API_TOKEN` and the MySQL container's own
-credentials.
+These are **not** environment variables any more. They are rows in
+`echo_tbl_Settings` in the Echo database, which each Echo app reads for
+itself (EchoDatabase `init/009_settings.sql`). The `.env` on the host carries
+only the MySQL credentials, and the NocoDB coordinates for `trustedCIDR`.
 
-Two ways to set them, and the first is preferred:
+Set them with any MySQL client against `echo_db`:
 
-**Through the identity app's first-run wizard** at `https://identity.wisp.net`.
-It asks for the database, then the OAuth credentials, verifies them with a
-real sign-in, and writes them to `auth_tbl_Settings` itself. It also fills in
-`APP_BASE_URL` from the address you open it on, so the value cannot disagree
-with the URL people actually use.
+```sql
+UPDATE echo_tbl_Settings SET sValue = ? WHERE sApp = ? AND sKey = ?;
+```
 
-**By hand in NocoDB** at `https://nocodb.wisp.net`, base `IdentityBase`, table
-`auth_tbl_Settings`:
-
-| Key | Value |
-| --- | --- |
-| `APP_BASE_URL` | `https://echo.wisp.net` |
-| `GOOGLE_CLIENT_ID` | from Google Cloud Console |
-| `GOOGLE_CLIENT_SECRET` | from Google Cloud Console |
-| `UISP_BASE_URL` | `https://my.wisp.net` |
-| `UISP_CRM_APP_KEY_READ` | read-only CRM App Key |
-| `UISP_SSO_SECRET` | the value generated in step 2 |
-| `UISP_PLUGIN_URL` | filled in at step 7, after the plugin is installed |
-| `trustedCIDR` | the network the platform's servers sit on |
+| `sApp` | `sKey` | Value |
+| --- | --- | --- |
+| `web` | `APP_BASE_URL` | `https://echo.wisp.net` |
+| `web` | `GOOGLE_CLIENT_ID` | from Google Cloud Console |
+| `web` | `GOOGLE_CLIENT_SECRET` | from Google Cloud Console |
+| `web` | `UISP_SSO_SECRET` | the value generated in step 2 |
+| `web` | `UISP_PLUGIN_URL` | filled in at step 7, after the plugin is installed |
+| `*` | `UISP_BASE_URL` | `https://my.wisp.net` |
+| `*` | `UISP_CRM_APP_KEY_READ` | read-only CRM App Key |
 
 Use a **read-only** CRM App Key. Echo only reads clients; a read-write key here
 widens the blast radius for no benefit.
 
-A change here reaches every running service within 30 seconds — no restart,
-no redeploy. Sanity-check `APP_BASE_URL` before starting: it must be the prod
-host, not dev.
+`trustedCIDR` is the exception: it is platform-wide network policy, so it
+lives in the NocoDB base `IdentityBase`, table `auth_tbl_Settings`, where
+identity and every application read the same value.
+
+A change in either place reaches every running service within 30 seconds — no
+restart, no redeploy. Sanity-check `APP_BASE_URL` before starting: it must be
+the prod host, not dev.
 
 ```bash
 # The host .env should now contain only these.
-grep -E 'NOCODB_BASE_URL|NOCODB_API_TOKEN|MYSQL_' /opt/echo/EchoOrchestrator/.env
+grep -E 'MYSQL_|NOCODB_' /opt/echo/EchoOrchestrator/.env
 ```
 
 ---

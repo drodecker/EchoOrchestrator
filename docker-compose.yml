@@ -9,14 +9,14 @@
 #   - localhost-only published ports remain useful for direct service checks/fallback
 #
 # Configuration model:
-#   Every service reads its settings from the NocoDB base IdentityBase
-#   (table auth_tbl_Settings) — see localsplash/identity#15. This file states
-#   only how to reach that base, plus what the database container needs to
-#   configure itself, which cannot come from a table it is hosting.
+#   Each service reads its settings from echo_tbl_Settings in the Echo
+#   database (EchoDatabase init/009_settings.sql) — rows keyed by sApp, '*'
+#   for every app and 'web'/'service'/'media' for one. This file states only
+#   what cannot describe itself: how to reach that database, and how to reach
+#   the IdentityBase NocoDB base that carries the platform-wide trustedCIDR.
 #
 # Expects sibling repo layout:
 #   ../EchoDatabase/   ../EchoService/   ../EchoWeb/   ../EchoMedia/
-#   ../identity/  (the identity service, served at identity.X.TLD)
 
 services:
 
@@ -50,9 +50,16 @@ services:
     hostname: echo-service
     environment:
       PORT: "8080"
-      # The two things a service states; everything else — the database
-      # coordinates, the Bandwidth credentials, CORS origins, trustedCIDR —
-      # is a row in IdentityBase.auth_tbl_Settings.
+      # Where echo_tbl_Settings lives. Everything else about this service —
+      # the Bandwidth credentials, CORS origins, the webhook basic-auth pair —
+      # is a row in it, keyed sApp='service'.
+      DB_HOST: echo-database
+      DB_USER: ${MYSQL_USER:-echo_app}
+      DB_PASSWORD: ${MYSQL_PASSWORD}
+      DB_NAME: ${MYSQL_DATABASE:-echo_db}
+      # And where trustedCIDR lives — the one setting read from outside the
+      # Echo database, because a network policy only works if identity and
+      # every application agree on it.
       NOCODB_BASE_URL: ${NOCODB_BASE_URL}
       NOCODB_API_TOKEN: ${NOCODB_API_TOKEN}
     depends_on:
@@ -72,10 +79,14 @@ services:
     environment:
       TZ: America/Los_Angeles
       PORT: "3160"
-      # The two things a service states. The OAuth and UISP credentials, the
-      # database coordinates, ECHO_SERVICE_BASE_URL, MEDIA_BASE_URL,
-      # APP_BASE_URL and trustedCIDR are rows in
-      # IdentityBase.auth_tbl_Settings, shared with every other application.
+      # Where echo_tbl_Settings lives. The OAuth and UISP credentials,
+      # APP_BASE_URL, ECHO_SERVICE_BASE_URL and MEDIA_BASE_URL are rows in
+      # it, keyed sApp='web' (or '*' where every app reads them).
+      DB_HOST: echo-database
+      DB_USER: ${MYSQL_USER:-echo_app}
+      DB_PASSWORD: ${MYSQL_PASSWORD}
+      DB_NAME: ${MYSQL_DATABASE:-echo_db}
+      # And where trustedCIDR lives.
       NOCODB_BASE_URL: ${NOCODB_BASE_URL}
       NOCODB_API_TOKEN: ${NOCODB_API_TOKEN}
     depends_on:
@@ -83,25 +94,6 @@ services:
         condition: service_healthy
       echo-service:
         condition: service_started
-    restart: unless-stopped
-    networks:
-      - echo-net
-
-  # ── Identity (identity.X.TLD) ──────────────────────────────────────────────
-  #
-  # The single sign-in surface for every app under the parent domain, and the
-  # owner of the IdentityBase settings base every other service reads. It
-  # creates and seeds that base on first boot; the others only read it.
-  identity:
-    build: ../identity
-    container_name: identity
-    hostname: identity
-    environment:
-      PORT: "3200"
-      NOCODB_BASE_URL: ${NOCODB_BASE_URL}
-      NOCODB_API_TOKEN: ${NOCODB_API_TOKEN}
-    ports:
-      - "127.0.0.1:3200:3200"
     restart: unless-stopped
     networks:
       - echo-net

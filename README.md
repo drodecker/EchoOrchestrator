@@ -4,33 +4,31 @@ Canonical deployment/orchestration project for the Echo stack.
 
 ## Configuration
 
-Every service in this stack reads its settings from the NocoDB base
-**`IdentityBase`**, table **`auth_tbl_Settings`** — see
-localsplash/identity#15 for the platform standard. The compose files pass each
-service only `NOCODB_BASE_URL` and `NOCODB_API_TOKEN`; the OAuth and UISP
-credentials, the database coordinates the applications connect with, the
-public URLs and `trustedCIDR` are rows in that table.
+Each Echo service reads its settings from **`echo_tbl_Settings` in the Echo
+database** — see EchoDatabase `init/009_settings.sql`. Rows are keyed by
+`sApp`: `'*'` is read by every Echo app, `'web'` / `'service'` / `'media'` by
+one, and an app's own row wins over the general one. Adding an app-specific
+setting is a row, never a new table.
 
-- **One base per repository**, named `{Repo}Base`. The name is unique by our
-  convention — NocoDB does not enforce it, we do — so services find the base
-  ID from the name at runtime rather than carrying an ID that survives a
-  rename and outlives a restore.
-- **`trustedCIDR` is one value for the whole platform**, not a differently
-  named CIDR per service. It describes the network the servers sit on: every
-  first-party service inside it is trusted, nothing outside it is. Enforce the
-  same value at the NPM/openresty edge.
-- **A change reaches every running service within 30 seconds**, with no
-  restart — values and the resolved base/table IDs share one cache clock.
-- **Failure is loud**: a service that cannot find `IdentityBase` retries once
-  at startup and then exits saying so.
+The compose files therefore pass each service only what cannot describe
+itself:
 
-The MySQL container keeps `MYSQL_ROOT_PASSWORD` / `MYSQL_USER` /
-`MYSQL_PASSWORD` in the `.env` — it cannot read its own credentials out of a
-table it is hosting.
+| Passed | Why |
+| --- | --- |
+| `DB_HOST` / `DB_USER` / `DB_PASSWORD` / `DB_NAME` | Where `echo_tbl_Settings` lives |
+| `NOCODB_BASE_URL` / `NOCODB_API_TOKEN` | Where `trustedCIDR` lives (below) |
+| `MYSQL_*` (database service only) | The container configures itself; it cannot read its own credentials out of a table it is hosting |
 
-The identity service (`identity.X.TLD`, sibling repo `../identity`) owns
-`IdentityBase`: it creates and seeds the base on first boot, and its first-run
-wizard is the intended way to fill the rows in.
+**`trustedCIDR` is the one setting read from outside the Echo database.** It
+is platform-wide network policy that the identity service and every
+application have to agree on, so it is spelled once — in the NocoDB base
+`IdentityBase`, table `auth_tbl_Settings` — rather than as a differently
+named CIDR per service. That base is found by *name* at runtime, never by an
+ID from a config file. Enforce the same value at the NPM/openresty edge.
+
+A settings change reaches every running service within 30 seconds, with no
+restart and no redeploy. A service that cannot read its settings retries once
+at startup and then exits saying so; there is no fallback to defaults.
 
 ## Stack
 
