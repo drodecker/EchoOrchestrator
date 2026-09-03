@@ -130,8 +130,15 @@ services:
       DB_USER: ${MYSQL_USER:-echo_app}
       DB_PASSWORD: ${MYSQL_PASSWORD}
       DB_NAME: ${MYSQL_DATABASE:-echo_db}
-      # And that is the whole list. EchoWeb reads nothing from NocoDB, so it
-      # needs no token and has no bootstrap to do — see EchoWeb#17.
+      # And where PARENT_DOMAIN and IDENTITY_CLIENT_SECRET live. Every public
+      # URL this app has is derived from the first, and the second is how it
+      # authenticates to identity's token endpoint. Blank here on purpose: the
+      # identity-config volume below carries them.
+      NOCODB_BASE_URL: ${NOCODB_BASE_URL:-}
+      NOCODB_API_TOKEN: ${NOCODB_API_TOKEN:-}
+    volumes:
+      # identity's bootstrap file, read-only — same file echo-service reads.
+      - identity-config:/data:ro
     depends_on:
       echo-database:
         condition: service_healthy
